@@ -2,6 +2,17 @@
 #include <Arduino.h>
 #include "driver/twai.h"
 
+#include "driver/mcpwm.h"
+
+#define PWM_PIN 21
+int pwmFreq = 0;                   // Frekvence PWM v Hz
+unsigned long lastMessageTime = 0; // Čas poslední zprávy
+bool isMoving = false;             // Příznak pohybu motoru
+
+int currentSpeed = 0;        // aktuální rychlost motoru
+int accelerationRate = 1000; // rychlost akcelerace
+int setDirection = 0;        // nastavený směr
+
 #define CAN_RX_PIN 44
 #define CAN_TX_PIN 43
 
@@ -9,18 +20,14 @@ const int stepPin = 21;   // PUL/STEP pin na ESP32S3
 const int dirPin = 48;    // DIR pin na ESP32S3
 const int enablePin = 45; // ENABLE pin na ESP32S3
 
-const int minStepInterval = 2;  // Minimální prodleva mezi kroky v ms (rychlost)
-const int maxStepInterval = 5;  // Maximální prodleva mezi kroky v ms
-const int accelerationRate = 1; // Rychlost zrychlení/zpomalení v ms
-
 unsigned long previousMillis = 0;
 int stepsCompleted = 0;
-int stepInterval = maxStepInterval;
+int setSpeed = 0;
 int targetSteps = 0;
 bool direction = HIGH;
 
-bool setDirection = false;
-int DEFAULT_STEP = 1;
+int currentDirection = 0;
+int DEFAULT_STEP = 10;
 
 bool UP_direction = false;
 bool Down_direction = false;
@@ -75,47 +82,20 @@ struct MessageCommon
   uint8_t byte7;
 };
 
-void startStepperMovement(bool dir, int numSteps)
+void stepperMovementMove(bool dir, int speed)
 {
-  stepsCompleted = 0;
   direction = dir;
-  targetSteps = numSteps;
+  digitalWrite(enablePin, LOW);    //
+  digitalWrite(dirPin, direction); // Nastavení směru
+  mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 50.0);
+  mcpwm_set_frequency(MCPWM_UNIT_0, MCPWM_TIMER_0, speed); // Nastavení duty cycle pro kanál A v procentech
+  mcpwm_start(MCPWM_UNIT_0, MCPWM_TIMER_0);                // Zapnutí PWM
 }
 
-void moveStepperNonBlocking()
+void stepperMovementStop()
 {
-  unsigned long currentMillis = millis();
-
-  if (currentMillis - previousMillis >= stepInterval)
-  {
-    previousMillis = currentMillis;
-
-    // Aktivovat pin Enable (pokud je aktivace LOW, změňte na LOW)
-    digitalWrite(enablePin, LOW);
-
-    if (stepsCompleted < targetSteps)
-    {
-      digitalWrite(dirPin, direction);
-      digitalWrite(stepPin, !digitalRead(stepPin));
-
-      if (digitalRead(stepPin) == LOW)
-      {
-        stepsCompleted++;
-
-        // Akcelerace
-        if (stepInterval > minStepInterval)
-        {
-          stepInterval -= accelerationRate;
-        }
-      }
-    }
-    else
-    {
-      // Deaktivovat pin Enable (pokud je aktivace LOW, změňte na HIGH)
-      digitalWrite(enablePin, HIGH);
-      stepInterval = maxStepInterval;
-    }
-  }
+  digitalWrite(enablePin, HIGH); // Deaktivace pinu Enable (pokud je aktivace LOW, změňte na HIGH)
+  mcpwm_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
 }
 
 int readGPIO(int gpioPin)
@@ -247,8 +227,8 @@ bool convertDirection(bool UP_direction, bool Down_direction)
   }
   else
   {
-    Serial.println("Směr je neplatný");
-    return 0; // Návratová hodnota pro neplatný vstup nebo chybu
+    Serial.println("Nehybný stav");
+    return NULL; // Nehybný stav
   }
 }
 
@@ -267,9 +247,18 @@ void handleCANMessage(int id, twai_message_t message)
     setGPIO(OUT_ENABLE, (data[1] >> 0) & 0x01);
     UP_direction = (data[3] >> 0) & 0x01;
     Down_direction = (data[4] >> 0) & 0x01;
-    setDirection = convertDirection(UP_direction, Down_direction);
-    startStepperMovement(setDirection, DEFAULT_STEP);
-    sendCANMessage(OXI_HEAD_1_ID, createMessageWithAllOnes(), 8);
+    if (UP_direction || Down_direction)
+    {
+      setDirection = convertDirection(UP_direction, Down_direction);
+      setSpeed = map(data[5], 0, 255, 1000, 10000);
+      lastMessageTime = millis(); // Aktualizujeme čas poslední zprávy
+      isMoving = true;            // Nastavíme příznak pohybu na true
+    }
+    else
+    {
+      isMoving = false; // Nastavíme příznak pohybu na false
+    }
+    sendCANMessage(OXI_HEAD_1_ID, createMessage_OXI_HEAD(), 8);
     break;
 
   case COMMAND_RESPOND_ID:
@@ -298,6 +287,17 @@ void setup()
 
   // Deaktivovat pin Enable (pokud je aktivace LOW, změňte na HIGH)
   digitalWrite(enablePin, HIGH);
+  digitalWrite(enablePin, LOW);
+
+  mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, stepPin);
+
+  mcpwm_config_t pwm_config;
+  pwm_config.frequency = pwmFreq; // Frekvence v Hz
+  pwm_config.cmpr_a = 50.0;       // Duty cycle pro kanál A v procentech
+  pwm_config.counter_mode = MCPWM_UP_COUNTER;
+  pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
+
+  mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config);
 
   twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)CAN_TX_PIN, (gpio_num_t)CAN_RX_PIN, TWAI_MODE_NO_ACK); // TWAI_MODE_NORMAL, TWAI_MODE_NO_ACK or TWAI_MODE_LISTEN_ONLY
   twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
@@ -338,8 +338,48 @@ void recieveMessage(void)
   }
 }
 
+void stepperMotorNonBlockingControl()
+{
+  if (isMoving && (millis() - lastMessageTime >= 30))
+  {
+    if (setDirection != currentDirection)
+    {                                   // pokud došlo ke změně směru
+      currentSpeed -= accelerationRate; // zpomalujeme
+      if (currentSpeed <= 0)
+      { // pokud se motor zastavil
+        currentSpeed = 0;
+        currentDirection = setDirection; // změníme směr
+      }
+    }
+    else if (currentSpeed < setSpeed)
+    {                                   // pokud je aktuální rychlost menší než cílová
+      currentSpeed += accelerationRate; // zvyšujeme rychlost
+      if (currentSpeed > setSpeed)
+        currentSpeed = setSpeed; // omezení maximální rychlosti
+    }
+    else if (currentSpeed > setSpeed)
+    {                                   // pokud je aktuální rychlost větší než cílová
+      currentSpeed -= accelerationRate; // zpomalujeme
+      if (currentSpeed < setSpeed)
+        currentSpeed = setSpeed; // omezení minimální rychlosti
+    }
+    else if (currentSpeed == setSpeed)
+    {
+      currentSpeed = setSpeed;
+      return;
+    }
+    
+    stepperMovementMove(setDirection, currentSpeed); // Provedeme pohyb motoru
+  }
+  else
+  {
+    isMoving = false; // Nastavíme příznak pohybu na false
+    stepperMovementStop();
+  }
+}
+
 void loop()
 {
   recieveMessage();
-  moveStepperNonBlocking();
+  stepperMotorNonBlockingControl();
 }
