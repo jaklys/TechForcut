@@ -34,9 +34,9 @@ enum GPIOToSend
   PWM_VENT_3 = 12,
 };
 
-const int PWM_FREQUENCY = 500; // Frekvence PWM
-const int PWM_RESOLUTION = 13; // Rozlišení PWM (0 -  8191)
-const int PWM_MAX = 8191;      // Max hodnota PWM
+const int PWM_FREQUENCY = 950; // Frekvence PWM
+const int PWM_RESOLUTION = 12; // Rozlišení PWM (0 -  4095)
+const int PWM_MAX = 4095;      // Max hodnota PWM
 
 const int VENT_1_CHANNEL = 0;
 const int VENT_2_CHANNEL = 1;
