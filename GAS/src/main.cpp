@@ -426,12 +426,15 @@ void setup()
 
   pidVent1.SetMode(AUTOMATIC);
   pidVent1.SetOutputLimits(0, PWM_MAX);
+  pidVent1.SetControllerDirection(REVERSE);
 
   pidVent2.SetMode(AUTOMATIC);
   pidVent2.SetOutputLimits(0, PWM_MAX);
+  pidVent2.SetControllerDirection(REVERSE);
 
   pidVent3.SetMode(AUTOMATIC);
   pidVent3.SetOutputLimits(0, PWM_MAX);
+  pidVent3.SetControllerDirection(REVERSE);
 
   setpoint1 = PWM_MAX;
   setpoint2 = PWM_MAX;
