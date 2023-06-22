@@ -178,8 +178,9 @@ int read_adc_value(int pin)
 MessageCommon *createMessage_SendOutPutADC()
 {
   int adc_reading1 = ADC_FROM_ADC_1;
-  int adc_reading2 = ADC_FROM_ADC_2;
   int adc_reading3 = ADC_FROM_ADC_3;
+  int adc_reading5 = ADC_FROM_ADC_5;
+  
 
   static MessageCommon *message = nullptr;
   if (message == nullptr)
@@ -188,10 +189,10 @@ MessageCommon *createMessage_SendOutPutADC()
   }
   message->byte0 = (adc_reading1 >> 8);   // horních 8 bitů z value1
   message->byte1 = (adc_reading1 & 0xFF); // spodních 8 bitů z value1
-  message->byte2 = (adc_reading2 >> 8);   // horních 8 bitů z value2
-  message->byte3 = (adc_reading2 & 0xFF); // spodních 8 bitů z value2
-  message->byte4 = (adc_reading3 >> 8);   // horních 8 bitů z value3
-  message->byte5 = (adc_reading3 & 0xFF); // spodních 8 bitů z value3
+  message->byte2 = (adc_reading3 >> 8);   // horních 8 bitů z value2
+  message->byte3 = (adc_reading3 & 0xFF); // spodních 8 bitů z value2
+  message->byte4 = (adc_reading5 >> 8);   // horních 8 bitů z value3
+  message->byte5 = (adc_reading5 & 0xFF); // spodních 8 bitů z value3
   message->byte6 = 0;
   message->byte7 = 0;
   return message;
@@ -199,8 +200,8 @@ MessageCommon *createMessage_SendOutPutADC()
 
 MessageCommon *createMessage_SendInputADC()
 {
+  int adc_reading2 = ADC_FROM_ADC_2;
   int adc_reading4 = ADC_FROM_ADC_4;
-  int adc_reading5 = ADC_FROM_ADC_5;
   int adc_reading6 = ADC_FROM_ADC_6;
 
   static MessageCommon *message = nullptr;
@@ -208,10 +209,10 @@ MessageCommon *createMessage_SendInputADC()
   {
     message = new MessageCommon;
   }
-  message->byte0 = (adc_reading4 >> 8);   // horních 8 bitů z value1
-  message->byte1 = (adc_reading4 & 0xFF); // spodních 8 bitů z value1
-  message->byte2 = (adc_reading5 >> 8);   // horních 8 bitů z value2
-  message->byte3 = (adc_reading5 & 0xFF); // spodních 8 bitů z value2
+  message->byte0 = (adc_reading2 >> 8);   // horních 8 bitů z value1
+  message->byte1 = (adc_reading2 & 0xFF); // spodních 8 bitů z value1
+  message->byte2 = (adc_reading4 >> 8);   // horních 8 bitů z value2
+  message->byte3 = (adc_reading4 & 0xFF); // spodních 8 bitů z value2
   message->byte4 = (adc_reading6 >> 8);   // horních 8 bitů z value3
   message->byte5 = (adc_reading6 & 0xFF); // spodních 8 bitů z value3
   message->byte6 = 0;
@@ -305,17 +306,17 @@ uint16_t convertTo12Bit(uint16_t value)
 void setVents(int toSetpint1, int toSetpint2, int toSetpint3)
 {
 
-  int adc_reading1 = ADC_FROM_CAN_1;
   int adc_reading2 = ADC_FROM_CAN_2;
-  int adc_reading3 = ADC_FROM_CAN_3;
+  int adc_reading4 = ADC_FROM_CAN_4;
+  int adc_reading6 = ADC_FROM_CAN_6;
 
   setpoint1 = toSetpint1;
   setpoint2 = toSetpint2;
   setpoint3 = toSetpint3;
 
-  input1 = adc_reading1;
-  input2 = adc_reading2;
-  input3 = adc_reading3;
+  input1 = adc_reading2;
+  input2 = adc_reading4;
+  input3 = adc_reading6;
 
   // Provedení PID výpočtu pro každý ventil
   pidVent1.Compute();
@@ -375,9 +376,9 @@ void handleCANMessage(int id, twai_message_t message)
 
     Serial.print("-----------RecieveADC_VALUE_ID------------");
     Serial.println();
-    ADC_FROM_CAN_1 = convertTo12Bit(values[0]);
-    ADC_FROM_CAN_2 = convertTo12Bit(values[1]);
-    ADC_FROM_CAN_3 = convertTo12Bit(values[2]);
+    ADC_FROM_CAN_2 = convertTo12Bit(values[0]);
+    ADC_FROM_CAN_4 = convertTo12Bit(values[1]);
+    ADC_FROM_CAN_6 = convertTo12Bit(values[2]);
     break;
 
   case COMMAND_RESPOND_ID:
