@@ -21,6 +21,10 @@ PID pidVent1(&input1, &output1, &setpoint1, Kp, Ki, Kd, DIRECT);
 PID pidVent2(&input2, &output2, &setpoint2, Kp, Ki, Kd, DIRECT);
 PID pidVent3(&input3, &output3, &setpoint3, Kp, Ki, Kd, DIRECT);
 
+uint16_t pidForVent1 = 0;
+uint16_t pidForVent2 = 0;
+uint16_t pidForVent3 = 0;
+
 enum GPIOToSend
 {
   SOL1 = 10,
@@ -30,16 +34,13 @@ enum GPIOToSend
   PWM_VENT_3 = 12,
 };
 
-
 const int PWM_FREQUENCY = 500; // Frekvence PWM
 const int PWM_RESOLUTION = 13; // Rozlišení PWM (0 -  8191)
 const int PWM_MAX = 8191;      // Max hodnota PWM
 
-
 const int VENT_1_CHANNEL = 0;
 const int VENT_2_CHANNEL = 1;
 const int VENT_3_CHANNEL = 2;
-
 
 const int VENT_1_TIMER = 0;
 const int VENT_2_TIMER = 1;
@@ -48,6 +49,16 @@ const int VENT_3_TIMER = 2;
 uint16_t ADC_FROM_CAN_1 = 0;
 uint16_t ADC_FROM_CAN_2 = 0;
 uint16_t ADC_FROM_CAN_3 = 0;
+uint16_t ADC_FROM_CAN_4 = 0;
+uint16_t ADC_FROM_CAN_5 = 0;
+uint16_t ADC_FROM_CAN_6 = 0;
+
+uint16_t ADC_FROM_ADC_1 = 0;
+uint16_t ADC_FROM_ADC_2 = 0;
+uint16_t ADC_FROM_ADC_3 = 0;
+uint16_t ADC_FROM_ADC_4 = 0;
+uint16_t ADC_FROM_ADC_5 = 0;
+uint16_t ADC_FROM_ADC_6 = 0;
 
 enum GPIOToRead
 {
@@ -71,6 +82,7 @@ enum MessageIDToSend
   SEND_OUTPUT_ADC_ID = 0x2E0,
   SEND_INPUT_ADC_ID = 0x2E1,
   COMMAND_RESPOND_ID = 0x400,
+  SEDN_PID_COMPUTED_ID = 0x600,
 };
 
 struct Message
@@ -105,7 +117,6 @@ void setGPIO(int GPIO, bool state)
 {
   digitalWrite(GPIO, state ? HIGH : LOW);
 }
-
 
 MessageCommon *createMessageWithAllOnes()
 {
@@ -147,7 +158,6 @@ MessageCommon *createMessageWithAllZero()
   return message;
 }
 
-
 int read_adc_value(int pin)
 {
   // aktuální čas v milisekundách
@@ -167,9 +177,9 @@ int read_adc_value(int pin)
 
 MessageCommon *createMessage_SendOutPutADC()
 {
-  int adc_reading1 = read_adc_value(ADC_1);
-  int adc_reading2 = read_adc_value(ADC_2);
-  int adc_reading3 = read_adc_value(ADC_3);
+  int adc_reading1 = ADC_FROM_ADC_1;
+  int adc_reading2 = ADC_FROM_ADC_2;
+  int adc_reading3 = ADC_FROM_ADC_3;
 
   static MessageCommon *message = nullptr;
   if (message == nullptr)
@@ -189,9 +199,9 @@ MessageCommon *createMessage_SendOutPutADC()
 
 MessageCommon *createMessage_SendInputADC()
 {
-  int adc_reading4 = read_adc_value(ADC_4);
-  int adc_reading5 = read_adc_value(ADC_5);
-  int adc_reading6 = read_adc_value(ADC_6);
+  int adc_reading4 = ADC_FROM_ADC_4;
+  int adc_reading5 = ADC_FROM_ADC_5;
+  int adc_reading6 = ADC_FROM_ADC_6;
 
   static MessageCommon *message = nullptr;
   if (message == nullptr)
@@ -204,6 +214,28 @@ MessageCommon *createMessage_SendInputADC()
   message->byte3 = (adc_reading5 & 0xFF); // spodních 8 bitů z value2
   message->byte4 = (adc_reading6 >> 8);   // horních 8 bitů z value3
   message->byte5 = (adc_reading6 & 0xFF); // spodních 8 bitů z value3
+  message->byte6 = 0;
+  message->byte7 = 0;
+  return message;
+}
+
+MessageCommon *createMessage_SendComputePid()
+{
+
+  int compute_pid_vent1 = pidForVent1;
+  int compute_pid_vent2 = pidForVent2;
+  int compute_pid_vent3 = pidForVent3;
+  static MessageCommon *message = nullptr;
+  if (message == nullptr)
+  {
+    message = new MessageCommon;
+  }
+  message->byte0 = (compute_pid_vent1 >> 8);   // horních 8 bitů z value1
+  message->byte1 = (compute_pid_vent1 & 0xFF); // spodních 8 bitů z value1
+  message->byte2 = (compute_pid_vent2 >> 8);   // horních 8 bitů z value2
+  message->byte3 = (compute_pid_vent2 & 0xFF); // spodních 8 bitů z value2
+  message->byte4 = (compute_pid_vent3 >> 8);   // horních 8 bitů z value3
+  message->byte5 = (compute_pid_vent3 & 0xFF); // spodních 8 bitů z value3
   message->byte6 = 0;
   message->byte7 = 0;
   return message;
@@ -264,9 +296,10 @@ uint16_t *extractValuesFromCANMessage(const uint8_t canData[8])
   return values;
 }
 
-uint16_t convertTo13Bit(uint16_t value)
+uint16_t convertTo12Bit(uint16_t value)
 {
-  return value >> 3; // Posun bitů doprava o 3 pozice
+   /*return value >> 4;*/ // Posun bitů doprava o 3 pozice
+  return value; // Posun bitů doprava o 3 pozice
 }
 
 void setVents(int toSetpint1, int toSetpint2, int toSetpint3)
@@ -288,6 +321,10 @@ void setVents(int toSetpint1, int toSetpint2, int toSetpint3)
   pidVent1.Compute();
   pidVent2.Compute();
   pidVent3.Compute();
+
+  pidForVent1 = output1;
+  pidForVent2 = output2;
+  pidForVent3 = output3;
 
   // Nastavení PWM výstupů pro každý ventil invertovaně
   Serial.println("-----------PWM1------------");
@@ -311,7 +348,7 @@ void handleCANMessage(int id, twai_message_t message)
   Serial.print(" received, data: ");
   Serial.println();
   uint8_t *data = message.data;
-  
+
   switch (id)
   {
   case PWM_TARGET_ID:
@@ -325,25 +362,22 @@ void handleCANMessage(int id, twai_message_t message)
     Serial.print("Value3");
     Serial.println(values[2]);
     Serial.println();
-    setVents(convertTo13Bit(values[0]), convertTo13Bit(values[1]), convertTo13Bit(values[2]));
+    setVents(convertTo12Bit(values[0]), convertTo12Bit(values[1]), convertTo12Bit(values[2]));
     setGPIO(SOL1, (data[0] >> 0) & 0x01); // získat logický stav 2. bitu
     setGPIO(SOL2, (data[0] >> 4) & 0x01); // získat logický stav 3. bitu
 
-    //sendCANMessage(SEND_OUTPUT_ADC_ID, createMessage_SendOutPutADC(), 8);
-    //sendCANMessage(SEND_INPUT_ADC_ID, createMessage_SendInputADC(), 8);
-
-    sendCANMessage(SEND_OUTPUT_ADC_ID, createMessageWithAllZero(), 8);
-    sendCANMessage(SEND_INPUT_ADC_ID, createMessageWithAllOnes(), 8);
-
+    sendCANMessage(SEND_OUTPUT_ADC_ID, createMessage_SendOutPutADC(), 8);
+    sendCANMessage(SEND_INPUT_ADC_ID, createMessage_SendInputADC(), 8);
+    sendCANMessage(SEDN_PID_COMPUTED_ID, createMessage_SendComputePid(), 8);
     break;
 
   case ADC_VALUE_ID:
 
     Serial.print("-----------RecieveADC_VALUE_ID------------");
     Serial.println();
-    ADC_FROM_CAN_1 = convertTo13Bit(values[0]);
-    ADC_FROM_CAN_2 = convertTo13Bit(values[1]);
-    ADC_FROM_CAN_3 = convertTo13Bit(values[2]);
+    ADC_FROM_CAN_1 = convertTo12Bit(values[0]);
+    ADC_FROM_CAN_2 = convertTo12Bit(values[1]);
+    ADC_FROM_CAN_3 = convertTo12Bit(values[2]);
     break;
 
   case COMMAND_RESPOND_ID:
@@ -410,7 +444,6 @@ void setup()
   twai_start();
 }
 
-
 void printReceivedMessage(const twai_message_t &message)
 {
   Serial.println("-------------------Recieved---------------: ");
@@ -444,7 +477,18 @@ void recieveMessage(void)
   twai_clear_receive_queue();
 }
 
+void readADC()
+{
+  ADC_FROM_ADC_1 = analogRead(ADC_1);
+  ADC_FROM_ADC_2 = analogRead(ADC_2);
+  ADC_FROM_ADC_3 = analogRead(ADC_3);
+  ADC_FROM_ADC_4 = analogRead(ADC_4);
+  ADC_FROM_ADC_5 = analogRead(ADC_5);
+  ADC_FROM_ADC_6 = analogRead(ADC_6);
+}
+
 void loop()
 {
+  readADC();
   recieveMessage();
 }
