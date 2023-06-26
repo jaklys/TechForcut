@@ -27,14 +27,16 @@ uint16_t pidForVent3 = 0;
 
 enum GPIOToSend
 {
-  SOL1 = 10,
-  SOL2 = 11,
-  PWM_VENT_1 = 14,
+  SOL1 = 10, //RELE 1
+  SOL2 = 18, //RELE 4
+  PWM_VENT_1 = 12,
   PWM_VENT_2 = 13,
-  PWM_VENT_3 = 12,
+  PWM_VENT_3 = 14,
 };
 
-const int PWM_FREQUENCY = 950; // Frekvence PWM
+const int PWM_FREQUENCY_PWM1 = 950; // Frekvence PWM   ************************DOPLNIT************************
+const int PWM_FREQUENCY_PWM2 = 950; // Frekvence PWM   ************************DOPLNIT************************
+const int PWM_FREQUENCY_PWM3 = 950; // Frekvence PWM   ************************DOPLNIT************************
 const int PWM_RESOLUTION = 12; // Rozlišení PWM (0 -  4095)
 const int PWM_MAX = 4095;      // Max hodnota PWM
 
@@ -175,7 +177,7 @@ int read_adc_value(int pin)
   return adc_value;
 }
 
-MessageCommon *createMessage_SendOutPutADC()
+MessageCommon *createMessage_SendInputADC()
 {
   int adc_reading1 = ADC_FROM_ADC_1;
   int adc_reading3 = ADC_FROM_ADC_3;
@@ -198,7 +200,7 @@ MessageCommon *createMessage_SendOutPutADC()
   return message;
 }
 
-MessageCommon *createMessage_SendInputADC()
+MessageCommon *createMessage_SendOutPutADC()
 {
   int adc_reading2 = ADC_FROM_ADC_2;
   int adc_reading4 = ADC_FROM_ADC_4;
@@ -364,8 +366,8 @@ void handleCANMessage(int id, twai_message_t message)
     Serial.println(values[2]);
     Serial.println();
     setVents(convertTo12Bit(values[0]), convertTo12Bit(values[1]), convertTo12Bit(values[2]));
-    setGPIO(SOL1, (data[0] >> 0) & 0x01); // získat logický stav 2. bitu
-    setGPIO(SOL2, (data[0] >> 4) & 0x01); // získat logický stav 3. bitu
+    setGPIO(SOL1, (data[0] >> 0) & 0x01); // získat logický stav 0. bitu
+    setGPIO(SOL2, (data[0] >> 4) & 0x01); // získat logický stav 4. bitu
 
     sendCANMessage(SEND_OUTPUT_ADC_ID, createMessage_SendOutPutADC(), 8);
     sendCANMessage(SEND_INPUT_ADC_ID, createMessage_SendInputADC(), 8);
@@ -412,13 +414,13 @@ void setup()
   pinMode(ADC_5, INPUT);
   pinMode(ADC_6, INPUT);
 
-  ledcSetup(VENT_1_CHANNEL, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(VENT_1_CHANNEL, PWM_FREQUENCY_PWM1, PWM_RESOLUTION);
   ledcAttachPin(PWM_VENT_1, VENT_1_CHANNEL);
 
-  ledcSetup(VENT_2_CHANNEL, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(VENT_2_CHANNEL, PWM_FREQUENCY_PWM2, PWM_RESOLUTION);
   ledcAttachPin(PWM_VENT_2, VENT_2_CHANNEL);
 
-  ledcSetup(VENT_3_CHANNEL, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(VENT_3_CHANNEL, PWM_FREQUENCY_PWM3, PWM_RESOLUTION);
   ledcAttachPin(PWM_VENT_3, VENT_3_CHANNEL);
 
   ledcWrite(VENT_1_CHANNEL, PWM_MAX);
@@ -427,15 +429,15 @@ void setup()
 
   pidVent1.SetMode(AUTOMATIC);
   pidVent1.SetOutputLimits(0, PWM_MAX);
-  pidVent1.SetControllerDirection(REVERSE);
+  pidVent1.SetControllerDirection(DIRECT);
 
   pidVent2.SetMode(AUTOMATIC);
   pidVent2.SetOutputLimits(0, PWM_MAX);
-  pidVent2.SetControllerDirection(REVERSE);
+  pidVent2.SetControllerDirection(DIRECT);
 
   pidVent3.SetMode(AUTOMATIC);
   pidVent3.SetOutputLimits(0, PWM_MAX);
-  pidVent3.SetControllerDirection(REVERSE);
+  pidVent3.SetControllerDirection(DIRECT);
 
   setpoint1 = PWM_MAX;
   setpoint2 = PWM_MAX;
