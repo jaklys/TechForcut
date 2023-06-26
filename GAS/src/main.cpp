@@ -394,17 +394,18 @@ void handleCANMessage(int id, twai_message_t message)
 void setup()
 {
   Serial.begin(115200);
-  pinMode(SOL1, OUTPUT);
-  pinMode(SOL2, OUTPUT);
-  pinMode(PWM_VENT_1, OUTPUT);
-  pinMode(PWM_VENT_2, OUTPUT);
-  pinMode(PWM_VENT_3, OUTPUT);
-
+  
   digitalWrite(SOL1, HIGH);
   digitalWrite(SOL2, HIGH);
+  pinMode(SOL1, OUTPUT);
+  pinMode(SOL2, OUTPUT);
+
   digitalWrite(PWM_VENT_1, HIGH);
   digitalWrite(PWM_VENT_2, HIGH);
   digitalWrite(PWM_VENT_3, HIGH);
+  pinMode(PWM_VENT_1, OUTPUT);
+  pinMode(PWM_VENT_2, OUTPUT);
+  pinMode(PWM_VENT_3, OUTPUT);
 
   analogReadResolution(12);
   pinMode(ADC_1, INPUT);
