@@ -1,10 +1,8 @@
 #include <Wire.h>
 #include <Arduino.h>
 #include "driver/twai.h"
-
 #include "driver/mcpwm.h"
 
-#define PWM_PIN 21
 int pwmFreq = 0;                   // Frekvence PWM v Hz
 unsigned long lastMessageTime = 0; // Čas poslední zprávy
 bool isMoving = false;             // Příznak pohybu motoru
@@ -34,15 +32,15 @@ bool Down_direction = false;
 
 enum GPIOToRead
 {
-  BOTTOM_LIMIT = 9,
-  SIDE_LIMIT = 10,
-  UP_LIMIT = 46,
-  SERVO_LIMIT = 11,
+  BOTTOM_LIMIT = 10,
+  SIDE_LIMIT = 11,
+  UP_LIMIT = 9,
+  SERVO_LIMIT = 12,
 };
 
 enum GPIOToSend
 {
-  OUT_ENABLE = 12,
+  OUT_ENABLE = 14,
   OUT_IGNITION = 13,
 };
 
@@ -287,7 +285,6 @@ void setup()
 
   // Deaktivovat pin Enable (pokud je aktivace LOW, změňte na HIGH)
   digitalWrite(enablePin, HIGH);
-  digitalWrite(enablePin, LOW);
 
   mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, stepPin);
 
