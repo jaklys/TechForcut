@@ -92,8 +92,8 @@ void stepperMovementMove(bool dir, int speed)
 
 void stepperMovementStop()
 {
-  digitalWrite(enablePin, HIGH); // Deaktivace pinu Enable (pokud je aktivace LOW, změňte na HIGH)
   mcpwm_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
+  digitalWrite(enablePin, HIGH); // Deaktivace pinu Enable (pokud je aktivace LOW, změňte na HIGH)
 }
 
 int readGPIO(int gpioPin)
@@ -291,6 +291,7 @@ void setup()
   mcpwm_config_t pwm_config;
   pwm_config.frequency = pwmFreq; // Frekvence v Hz
   pwm_config.cmpr_a = 50.0;       // Duty cycle pro kanál A v procentech
+  pwm_config.cmpr_b = 0.0;        // Duty cycle pro kanál B v procentech
   pwm_config.counter_mode = MCPWM_UP_COUNTER;
   pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
 

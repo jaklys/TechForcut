@@ -27,18 +27,18 @@ uint16_t pidForVent3 = 0;
 
 enum GPIOToSend
 {
-  SOL1 = 10, //RELE 1
-  SOL2 = 18, //RELE 4
+  SOL1 = 10, // RELE 1
+  SOL2 = 18, // RELE 4
   PWM_VENT_1 = 12,
   PWM_VENT_2 = 13,
   PWM_VENT_3 = 14,
 };
 
-const int PWM_FREQUENCY_PWM1 = 950; // Frekvence PWM   ************************DOPLNIT************************
-const int PWM_FREQUENCY_PWM2 = 950; // Frekvence PWM   ************************DOPLNIT************************
-const int PWM_FREQUENCY_PWM3 = 950; // Frekvence PWM   ************************DOPLNIT************************
-const int PWM_RESOLUTION = 12; // Rozlišení PWM (0 -  4095)
-const int PWM_MAX = 4095;      // Max hodnota PWM
+const int PWM_FREQUENCY_PWM1 = 500; // Frekvence PWM   ************************DOPLNIT************************
+const int PWM_FREQUENCY_PWM2 = 500; // Frekvence PWM   ************************DOPLNIT************************
+const int PWM_FREQUENCY_PWM3 = 500; // Frekvence PWM   ************************DOPLNIT************************
+const int PWM_RESOLUTION = 12;      // Rozlišení PWM (0 -  4095)
+const int PWM_MAX = 4095;           // Max hodnota PWM
 
 const int VENT_1_CHANNEL = 0;
 const int VENT_2_CHANNEL = 1;
@@ -182,7 +182,6 @@ MessageCommon *createMessage_SendInputADC()
   int adc_reading1 = ADC_FROM_ADC_1;
   int adc_reading3 = ADC_FROM_ADC_3;
   int adc_reading5 = ADC_FROM_ADC_5;
-  
 
   static MessageCommon *message = nullptr;
   if (message == nullptr)
@@ -286,7 +285,7 @@ MessageCommon *createMessage_COMMAND_RESPOND()
   return message;
 }
 
-uint16_t *extractValuesFromCANMessage(const uint8_t canData[8])
+uint16_t *extractValuesFromCANMessage(uint8_t canData[8])
 {
 
   static uint16_t values[3] = {0};
@@ -294,6 +293,8 @@ uint16_t *extractValuesFromCANMessage(const uint8_t canData[8])
   for (int i = 0; i < 3; i++)
   {
     values[i] = (uint16_t)canData[i * 2] << 8 | canData[i * 2 + 1];
+    Serial.println("Hodnota extrahovana z prichozi zpravy: " + values[i]);
+    Serial.println();
   }
 
   return values;
@@ -301,8 +302,8 @@ uint16_t *extractValuesFromCANMessage(const uint8_t canData[8])
 
 uint16_t convertTo12Bit(uint16_t value)
 {
-   /*return value >> 4;*/ // Posun bitů doprava o 3 pozice
-  return value; // Posun bitů doprava o 3 pozice
+  /*return value >> 4;*/ // Posun bitů doprava o 3 pozice
+  return value;          // Posun bitů doprava o 3 pozice
 }
 
 void setVents(int toSetpint1, int toSetpint2, int toSetpint3)
@@ -351,11 +352,10 @@ void handleCANMessage(int id, twai_message_t message)
   Serial.print(" received, data: ");
   Serial.println();
   uint8_t *data = message.data;
-
+  uint16_t *values = extractValuesFromCANMessage(message.data);
   switch (id)
   {
   case PWM_TARGET_ID:
-    static uint16_t *values = extractValuesFromCANMessage(data);
     Serial.print("-----------RecievePWM_TARGET------------");
     Serial.println();
     Serial.print("Value1");
@@ -366,8 +366,8 @@ void handleCANMessage(int id, twai_message_t message)
     Serial.println(values[2]);
     Serial.println();
     setVents(convertTo12Bit(values[0]), convertTo12Bit(values[1]), convertTo12Bit(values[2]));
-    setGPIO(SOL1, (data[0] >> 0) & 0x01); // získat logický stav 0. bitu
-    setGPIO(SOL2, (data[0] >> 4) & 0x01); // získat logický stav 4. bitu
+    setGPIO(SOL1, !((data[7] >> 0) & 0x01)); // získat logický stav 0. bitu
+    setGPIO(SOL2, !((data[7] >> 4) & 0x01)); // získat logický stav 4. bitu
 
     sendCANMessage(SEND_OUTPUT_ADC_ID, createMessage_SendOutPutADC(), 8);
     sendCANMessage(SEND_INPUT_ADC_ID, createMessage_SendInputADC(), 8);
@@ -375,8 +375,14 @@ void handleCANMessage(int id, twai_message_t message)
     break;
 
   case ADC_VALUE_ID:
-
     Serial.print("-----------RecieveADC_VALUE_ID------------");
+    Serial.println();
+    Serial.print("ADC2");
+    Serial.println(values[0]);
+    Serial.print("ADC4");
+    Serial.println(values[1]);
+    Serial.print("ADC6");
+    Serial.println(values[2]);
     Serial.println();
     ADC_FROM_CAN_2 = convertTo12Bit(values[0]);
     ADC_FROM_CAN_4 = convertTo12Bit(values[1]);
@@ -394,7 +400,7 @@ void handleCANMessage(int id, twai_message_t message)
 void setup()
 {
   Serial.begin(115200);
-  
+
   digitalWrite(SOL1, HIGH);
   digitalWrite(SOL2, HIGH);
   pinMode(SOL1, OUTPUT);
@@ -481,7 +487,6 @@ void recieveMessage(void)
     printReceivedMessage(message);
     handleCANMessage(message.identifier, message);
   }
-  twai_clear_receive_queue();
 }
 
 void readADC()
