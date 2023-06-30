@@ -9,7 +9,7 @@
 unsigned long last_adc_reading_time[6] = {0};
 
 // interval mezi čteními vzorků z ADC
-const unsigned long ADC_READ_INTERVAL = 10; // 10 ms
+const unsigned long ADC_READ_INTERVAL = 20; // 20 ms
 
 double input1, output1, setpoint1;
 double input2, output2, setpoint2;
@@ -340,9 +340,9 @@ void setVents(int toSetpint1, int toSetpint2, int toSetpint3)
   Serial.println("-----------PWM3------------");
   Serial.println(PWM_MAX - (int)output3);
   Serial.println();
-  ledcWrite(VENT_1_CHANNEL, PWM_MAX - (int)output1);
-  ledcWrite(VENT_2_CHANNEL, PWM_MAX - (int)output2);
-  ledcWrite(VENT_3_CHANNEL, PWM_MAX - (int)output3);
+  ledcWrite(VENT_1_CHANNEL, setpoint1 == 0 ? PWM_MAX : PWM_MAX - (int)output1);
+  ledcWrite(VENT_2_CHANNEL, setpoint2 == 0 ? PWM_MAX : PWM_MAX - (int)output2);
+  ledcWrite(VENT_3_CHANNEL, setpoint3 == 0 ? PWM_MAX : PWM_MAX - (int)output3);
 }
 
 void handleCANMessage(int id, twai_message_t message)
@@ -488,15 +488,22 @@ void recieveMessage(void)
     handleCANMessage(message.identifier, message);
   }
 }
+uint16_t recalculateADCinRange(int adcPin) // prepocet hodnoty z ADC do rozsahu 0 - 4095 na delic 1k2 a 2k2
+{
+  static uint16_t recalculated = 0;
+  recalculated = analogRead(adcPin);
+  recalculated = map(recalculated, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
+  return recalculated;
+}
 
 void readADC()
 {
-  ADC_FROM_ADC_1 = analogRead(ADC_1);
-  ADC_FROM_ADC_2 = analogRead(ADC_2);
-  ADC_FROM_ADC_3 = analogRead(ADC_3);
-  ADC_FROM_ADC_4 = analogRead(ADC_4);
-  ADC_FROM_ADC_5 = analogRead(ADC_5);
-  ADC_FROM_ADC_6 = analogRead(ADC_6);
+  ADC_FROM_ADC_1 = recalculateADCinRange(ADC_1);
+  ADC_FROM_ADC_2 = recalculateADCinRange(ADC_2);
+  ADC_FROM_ADC_3 = recalculateADCinRange(ADC_3);
+  ADC_FROM_ADC_4 = recalculateADCinRange(ADC_4);
+  ADC_FROM_ADC_5 = recalculateADCinRange(ADC_5);
+  ADC_FROM_ADC_6 = recalculateADCinRange(ADC_6);
 }
 
 void loop()
