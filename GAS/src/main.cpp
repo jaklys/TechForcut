@@ -509,36 +509,21 @@ void recieveMessage(void)
 uint16_t recalculateADCinRange(int adcPin) // prepocet hodnoty z ADC do rozsahu 0 - 4095 na delic 1k2 a 2k2
 {
   const int numReadings = ADC_AVERAGE_MEASURE;
-  static uint16_t readings[numReadings]; // pole pro uložení čtení
-  static int readIndex = 0;
-  static int total = 0;
-  static uint16_t recalculated = 0;
+  int total = 0; // součet všech čtení
 
-  total -= readings[readIndex]; // odečtení starého čtení
+  for(int i = 0; i < numReadings; i++) {
+    uint16_t reading = analogRead(adcPin);
+    
+    if (reading < 375) {
+      reading = 0;
+    } else {
+      reading = map(reading, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
+    }
 
-  uint16_t newReading = analogRead(adcPin);
-
-  if (newReading < 375)
-  {
-    newReading = 0;
-  }
-  else
-  {
-    newReading = map(newReading, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
+    total += reading;
   }
 
-  readings[readIndex] = newReading;
-  total += readings[readIndex];
-
-  readIndex++;
-
-  if (readIndex >= numReadings)
-  {
-    readIndex = 0;
-  }
-
-  recalculated = total / numReadings;
-  return recalculated;
+  return total / numReadings; // průměrování čtení
 }
 
 void readADC()
