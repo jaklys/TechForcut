@@ -492,7 +492,14 @@ uint16_t recalculateADCinRange(int adcPin) // prepocet hodnoty z ADC do rozsahu 
 {
   static uint16_t recalculated = 0;
   recalculated = analogRead(adcPin);
-  recalculated = map(recalculated, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
+  if (recalculated < 375)
+  {
+    recalculated = 0;
+  }
+  else
+  {
+    recalculated = map(recalculated, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
+    }
   return recalculated;
 }
 
