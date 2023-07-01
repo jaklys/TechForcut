@@ -245,7 +245,7 @@ void handleCANMessage(int id, twai_message_t message)
     if ((UP_direction && !Down_direction) || (!UP_direction && Down_direction)) // Pokud je směr nahoru nebo dolů
     {
       setDirection = convertDirection(UP_direction, Down_direction);
-      setSpeed = map(data[5], 0, 255, 1000, 10000);
+      setSpeed = map(data[5], 0, 255, 1000, 8000);
       lastMessageTime = millis(); // Aktualizujeme čas poslední zprávy
       isMoving = true;            // Nastavíme příznak pohybu na true
     }
