@@ -15,11 +15,11 @@ double input1, output1, setpoint1;
 double input2, output2, setpoint2;
 double input3, output3, setpoint3;
 
-double Kp = 2, Ki = 5, Kd = 1;
+double Kp = 2, Ki = 2, Kd = 0;
 
-PID pidVent1(&input1, &output1, &setpoint1, Kp, Ki, Kd, DIRECT);
-PID pidVent2(&input2, &output2, &setpoint2, Kp, Ki, Kd, DIRECT);
-PID pidVent3(&input3, &output3, &setpoint3, Kp, Ki, Kd, DIRECT);
+PID pidVent1(&input1, &output1, &setpoint1, Kp, Ki, Kd, P_ON_E, DIRECT);
+PID pidVent2(&input2, &output2, &setpoint2, Kp, Ki, Kd, P_ON_E, DIRECT);
+PID pidVent3(&input3, &output3, &setpoint3, Kp, Ki, Kd, P_ON_E, DIRECT);
 
 uint16_t pidForVent1 = 0;
 uint16_t pidForVent2 = 0;
@@ -321,6 +321,22 @@ void setVents(int toSetpint1, int toSetpint2, int toSetpint3)
   input2 = adc_reading4;
   input3 = adc_reading6;
 
+  if (setpoint1 == 0)
+  {
+    pidVent1.SetMode(MANUAL);
+    pidVent1.SetMode(AUTOMATIC);
+  }
+  if (setpoint2 == 0)
+  {
+    pidVent2.SetMode(MANUAL);
+    pidVent2.SetMode(AUTOMATIC);
+  }
+  if (setpoint3 == 0)
+  {
+    pidVent3.SetMode(MANUAL);
+    pidVent3.SetMode(AUTOMATIC);
+  }
+
   // Provedení PID výpočtu pro každý ventil
   pidVent1.Compute();
   pidVent2.Compute();
@@ -499,7 +515,7 @@ uint16_t recalculateADCinRange(int adcPin) // prepocet hodnoty z ADC do rozsahu 
   else
   {
     recalculated = map(recalculated, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
-    }
+  }
   return recalculated;
 }
 
