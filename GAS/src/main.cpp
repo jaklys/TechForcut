@@ -21,6 +21,8 @@ PID pidVent1(&input1, &output1, &setpoint1, Kp, Ki, Kd, P_ON_E, DIRECT);
 PID pidVent2(&input2, &output2, &setpoint2, Kp, Ki, Kd, P_ON_E, DIRECT);
 PID pidVent3(&input3, &output3, &setpoint3, Kp, Ki, Kd, P_ON_E, DIRECT);
 
+const int ADC_AVERAGE_MEASURE = 5;
+
 uint16_t pidForVent1 = 0;
 uint16_t pidForVent2 = 0;
 uint16_t pidForVent3 = 0;
@@ -506,16 +508,36 @@ void recieveMessage(void)
 }
 uint16_t recalculateADCinRange(int adcPin) // prepocet hodnoty z ADC do rozsahu 0 - 4095 na delic 1k2 a 2k2
 {
+  const int numReadings = ADC_AVERAGE_MEASURE;
+  static uint16_t readings[numReadings]; // pole pro uložení čtení
+  static int readIndex = 0;
+  static int total = 0;
   static uint16_t recalculated = 0;
-  recalculated = analogRead(adcPin);
-  if (recalculated < 375)
+
+  total -= readings[readIndex]; // odečtení starého čtení
+
+  uint16_t newReading = analogRead(adcPin);
+
+  if (newReading < 375)
   {
-    recalculated = 0;
+    newReading = 0;
   }
   else
   {
-    recalculated = map(recalculated, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
+    newReading = map(newReading, 375, 3516, 0, 4095); // 375 je 0.5V, 3516 je 4.51V, vse v rozsahu napeti 0 - 0.5V je vyhodnoceno jako 0
   }
+
+  readings[readIndex] = newReading;
+  total += readings[readIndex];
+
+  readIndex++;
+
+  if (readIndex >= numReadings)
+  {
+    readIndex = 0;
+  }
+
+  recalculated = total / numReadings;
   return recalculated;
 }
 
