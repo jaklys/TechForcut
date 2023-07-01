@@ -3,7 +3,7 @@
 #include "driver/twai.h"
 #include "driver/mcpwm.h"
 
-int pwmFreq = 0;                   // Frekvence PWM v Hz
+int pwmFreq = 1000;                // Frekvence PWM v Hz
 unsigned long lastMessageTime = 0; // Čas poslední zprávy
 bool isMoving = false;             // Příznak pohybu motoru
 
@@ -22,7 +22,6 @@ unsigned long previousMillis = 0;
 int stepsCompleted = 0;
 int setSpeed = 0;
 int targetSteps = 0;
-bool direction = HIGH;
 
 int currentDirection = 0;
 int DEFAULT_STEP = 10;
@@ -40,8 +39,8 @@ enum GPIOToRead
 
 enum GPIOToSend
 {
-  OUT_ENABLE = 14,
-  OUT_IGNITION = 13,
+  OUT_ENABLE = 13,
+  OUT_IGNITION = 14,
 };
 
 enum MessageIDToRecieve
@@ -80,9 +79,8 @@ struct MessageCommon
   uint8_t byte7;
 };
 
-void stepperMovementMove(bool dir, int speed)
+void stepperMovementMove(int direction, int speed)
 {
-  direction = dir;
   digitalWrite(enablePin, LOW);    //
   digitalWrite(dirPin, direction); // Nastavení směru
   mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 50.0);
@@ -225,8 +223,7 @@ bool convertDirection(bool UP_direction, bool Down_direction)
   }
   else
   {
-    Serial.println("Nehybný stav");
-    return NULL; // Nehybný stav
+    return 0; // Směr nahoru
   }
 }
 
@@ -245,7 +242,7 @@ void handleCANMessage(int id, twai_message_t message)
     setGPIO(OUT_ENABLE, (data[1] >> 0) & 0x01);
     UP_direction = (data[3] >> 0) & 0x01;
     Down_direction = (data[4] >> 0) & 0x01;
-    if (UP_direction || Down_direction)
+    if ((UP_direction && !Down_direction) || (!UP_direction && Down_direction)) // Pokud je směr nahoru nebo dolů
     {
       setDirection = convertDirection(UP_direction, Down_direction);
       setSpeed = map(data[5], 0, 255, 1000, 10000);
@@ -361,12 +358,12 @@ void stepperMotorNonBlockingControl()
       if (currentSpeed < setSpeed)
         currentSpeed = setSpeed; // omezení minimální rychlosti
     }
-    else if (currentSpeed == setSpeed)
+    else if (currentSpeed == setSpeed) // pokud je aktuální rychlost rovna cílové
     {
       currentSpeed = setSpeed;
       return;
     }
-    
+
     stepperMovementMove(setDirection, currentSpeed); // Provedeme pohyb motoru
   }
   else
