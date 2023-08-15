@@ -1,16 +1,29 @@
 #include <Wire.h>
 #include <Arduino.h>
 #include "driver/twai.h"
+#include "nvs.h"
 
 #define CAN_RX_PIN 44
 #define CAN_TX_PIN 43
 
-#define ADS1110_ADDRESS 0x49 // Předpokládaná adresa ADS1110, upravte podle potřeby
+#define ADS1110_ADDRESS 0x48 // Předpokládaná adresa ADS1110, upravte podle potřeby
 #define SDA_PIN 4
 #define SCL_PIN 5
 
 #define RS422_RX_PIN 18
 #define RS422_TX_PIN 17
+
+#define NODE_TYPE 0x01
+#define FIRMWARE_VERSION "1.0"
+
+#define DEFAULT_BAUDRATE 9600
+
+int32_t RS485_baudrate = 0;
+int RS485_baudrate_changed_status = 0;
+nvs_handle my_handle;
+const char *KEY_STORAGE = "baudrate";
+
+int major, minor;
 
 static uint8_t buffer[8] = {0};
 static uint8_t bufferIndex = 0;
@@ -21,7 +34,7 @@ enum MessageIDToRecieve
   PLASMA_REMOTE_POWER_ID = 0x204,
   P_M_P_CC_ID = 0x206,
   SERIAL_TX_ID = 0x208,
-  MESSAGE3_ID = 0x500,
+  COMMAND_ID = 0x500,
 };
 
 enum GPIOToSend
@@ -46,7 +59,7 @@ enum MessageIDToSend
 {
   AETRA_ARC_ID = 0x200,
   SERIAL_RX_ID = 0x203,
-  COMMAND_RESPOND_ID = 0x400,
+  SEDN_COMMAND_RESPOND_ID = 0x400,
 };
 
 enum MessagePeriod
@@ -77,6 +90,35 @@ struct MessageCommon
   uint8_t byte6;
   uint8_t byte7;
 };
+
+void splitVersion(const char *version, int &major, int &minor)
+{
+  if (sscanf(version, "%d.%d", &major, &minor) != 2)
+  {
+    Serial.println("Chyba: Neplatný formát verze.");
+  }
+}
+
+bool saveBaudrate(int32_t baudrate)
+{
+  // Save the baudrate to NVS
+  esp_err_t err = nvs_set_i32(my_handle, KEY_STORAGE, baudrate);
+
+  if (err == ESP_OK)
+  {
+    // Commit the changes
+    err = nvs_commit(my_handle);
+
+    if (err == ESP_OK)
+    {
+      // Successfully saved and committed
+      return true;
+    }
+  }
+
+  // Failed to save or commit
+  return false;
+}
 
 int16_t readPlasmaADS()
 {
@@ -114,7 +156,7 @@ MessageCommon *createMessage_AETRA_ARC()
   int16_t ads_value = readPlasmaADS();
 
   float volatege = convertToVoltage(ads_value);
-  Serial.println("Volatege:!");
+  Serial.println("Voltage:!");
   Serial.println(volatege);
   Serial.println("_");
 
@@ -140,7 +182,6 @@ MessageCommon *createMessage_AETRA_ARC()
   Serial.println(readGPIO(AUTO_PIERCE_DEFECT));
 
   message->byte0 = (readGPIO(ARC_ON) << 0) | (readGPIO(ERROR) << 1) | (readGPIO(TOUCH_PLATE) << 2) | (readGPIO(READY) << 3) | (readGPIO(AUTO_PIERCE_DEFECT) << 4);
-  // Byte1-Byte7 můžou být nastaveny na nějakou konstantu nebo na nulu, protože to nevyužíváme
   message->byte1 = 0;
   message->byte2 = 0;
   message->byte3 = 0;
@@ -259,7 +300,7 @@ void sendMessageSerialRX()
   }
 }
 
-MessageCommon *createMessage_COMMAND_RESPOND()
+MessageCommon *createMessage_COMMAND_RESPOND_FIRMWARE_VERSION()
 {
   static MessageCommon *message = nullptr;
   if (message == nullptr)
@@ -269,12 +310,66 @@ MessageCommon *createMessage_COMMAND_RESPOND()
   message->byte0 = 0;
   message->byte1 = 0;
   message->byte2 = 0;
-  message->byte3 = 0;
+  message->byte3 = major;
+  message->byte4 = minor;
+  message->byte5 = 0;
+  message->byte6 = 0;
+  message->byte7 = 0;
+  return message;
+}
+
+MessageCommon *createMessage_COMMAND_RESPOND_SET_RS_SPEED()
+{
+  static MessageCommon *message = nullptr;
+  if (message == nullptr)
+  {
+    message = new MessageCommon;
+  }
+  message->byte0 = 0;
+  message->byte1 = 0;
+  message->byte2 = 0;
+  message->byte3 = RS485_baudrate_changed_status;
   message->byte4 = 0;
   message->byte5 = 0;
   message->byte6 = 0;
   message->byte7 = 0;
   return message;
+}
+void changeBaudrate(int baudrate, MessageCommon *message)
+{
+  RS485_baudrate_changed_status = saveBaudrate(baudrate);
+  Serial.println(baudrate);
+  RS422.updateBaudRate(baudrate);
+  sendCANMessage(SEDN_COMMAND_RESPOND_ID, message, 8);
+}
+
+void handleCommand(uint8_t *data)
+{
+  int command = data[2];
+
+  if (command == 0x01)
+  {
+    Serial.println("Get version");
+    Serial.println();
+    splitVersion(FIRMWARE_VERSION, major, minor);
+    sendCANMessage(SEDN_COMMAND_RESPOND_ID, createMessage_COMMAND_RESPOND_FIRMWARE_VERSION(), 8);
+  }
+  if (command == 0x04)
+  {
+    int baudrate_code = data[3];
+    if (baudrate_code == 0x01)
+    {
+      Serial.println("Set RS485 baudrate");
+      RS485_baudrate = 19200;
+      changeBaudrate(RS485_baudrate, createMessage_COMMAND_RESPOND_SET_RS_SPEED());
+    }
+    if (baudrate_code == 0x02)
+    {
+      Serial.println("Set RS485 baudrate");
+      RS485_baudrate = 115200;
+      changeBaudrate(RS485_baudrate, createMessage_COMMAND_RESPOND_SET_RS_SPEED());
+    }
+  }
 }
 
 void handleCANMessage(int id, twai_message_t message)
@@ -320,6 +415,15 @@ void handleCANMessage(int id, twai_message_t message)
     }
     Serial.println();
     break;
+  case COMMAND_ID:
+    Serial.print("-----------RecieveCOMMAND_ID------------");
+    Serial.println();
+    Serial.print("Command");
+    Serial.println(data[2]);
+    Serial.println();
+    handleCommand(data);
+    sendCANMessage(SEDN_COMMAND_RESPOND_ID, createMessage_COMMAND_RESPOND_FIRMWARE_VERSION(), 8);
+    break;
   default:
     Serial.println("Neznama zprava");
     break;
@@ -330,10 +434,17 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
-  Serial.print("Slyším a podlouchýá");
-
+  Serial.print("READY-Lisening");
   Wire.begin(SDA_PIN, SCL_PIN);
-  RS422.begin(19200, SERIAL_8N1, RS422_RX_PIN, RS422_TX_PIN);
+
+  if (nvs_open("storage", NVS_READWRITE, &my_handle) != ESP_OK)
+  {
+    Serial.println("Error opening NVS");
+  }
+  esp_err_t err = nvs_get_i32(my_handle, KEY_STORAGE, &RS485_baudrate);
+  RS485_baudrate = (err == ESP_OK) ? RS485_baudrate : DEFAULT_BAUDRATE;
+  RS422.begin(RS485_baudrate, SERIAL_8N1, RS422_RX_PIN, RS422_TX_PIN);
+
   pinMode(PLASMA_START, OUTPUT);
   pinMode(MARKING, OUTPUT);
   pinMode(PIERCING, OUTPUT);
