@@ -41,9 +41,9 @@ enum GPIOToSend
   EXHAUST = 18, // RELE 4
   HP_OXI = 16,  // RELE 5
 
-  PWM_VENT_1 = 12,
+  PWM_VENT_1 = 14,
   PWM_VENT_2 = 13,
-  PWM_VENT_3 = 14,
+  PWM_VENT_3 = 12,
 };
 
 const int PWM_FREQUENCY_PWM1 = 500; // Frekvence PWM   ************************DOPLNIT************************
@@ -77,11 +77,11 @@ uint16_t ADC_FROM_ADC_6 = 0;
 enum GPIOToRead
 {
   ADC_1 = 4,
-  ADC_2 = 5,
+  ADC_2 = 9,
   ADC_3 = 6,
   ADC_4 = 7,
   ADC_5 = 8,
-  ADC_6 = 9,
+  ADC_6 = 5,
 };
 
 enum MessageIDToRecieve
@@ -287,7 +287,7 @@ void sendCANMessage(uint32_t messageID, void *data, uint8_t dataSize)
   twai_transmit(&message, pdMS_TO_TICKS(100));
 }
 
-MessageCommon *createMessage_COMMAND_RESPOND()
+MessageCommon *createMessage_COMMAND_RESPOND_FIRMWARE_VERSION()
 {
   static MessageCommon *message = nullptr;
   if (message == nullptr)
@@ -474,7 +474,7 @@ void handleCANMessage(int id, twai_message_t message)
     Serial.println(data[2]);
     Serial.println();
     handleCommand(data[2]);
-    sendCANMessage(SEDN_COMMAND_RESPOND_ID, createMessage_COMMAND_RESPOND(), 8);
+    sendCANMessage(SEDN_COMMAND_RESPOND_ID, createMessage_COMMAND_RESPOND_FIRMWARE_VERSION(), 8);
     break;
   default:
     Serial.println("Neznama zprava");
@@ -486,23 +486,23 @@ void setup()
 {
   Serial.begin(115200);
 
-  digitalWrite(PR_GAS, LOW);
-  digitalWrite(CUT_OXI, LOW);
-  digitalWrite(PR_OXI, LOW);
-  digitalWrite(EXHAUST, LOW);
-  digitalWrite(HP_OXI, LOW);
   pinMode(PR_GAS, OUTPUT);
   pinMode(CUT_OXI, OUTPUT);
   pinMode(PR_OXI, OUTPUT);
   pinMode(EXHAUST, OUTPUT);
   pinMode(HP_OXI, OUTPUT);
+  digitalWrite(PR_GAS, LOW);
+  digitalWrite(CUT_OXI, LOW);
+  digitalWrite(PR_OXI, LOW);
+  digitalWrite(EXHAUST, LOW);
+  digitalWrite(HP_OXI, LOW);
 
-  digitalWrite(PWM_VENT_1, LOW);
-  digitalWrite(PWM_VENT_2, LOW);
-  digitalWrite(PWM_VENT_3, LOW);
   pinMode(PWM_VENT_1, OUTPUT);
   pinMode(PWM_VENT_2, OUTPUT);
   pinMode(PWM_VENT_3, OUTPUT);
+  digitalWrite(PWM_VENT_1, LOW);
+  digitalWrite(PWM_VENT_2, LOW);
+  digitalWrite(PWM_VENT_3, LOW);
 
   analogReadResolution(12);
   pinMode(ADC_1, INPUT);
