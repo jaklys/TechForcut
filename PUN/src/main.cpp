@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include "driver/twai.h"
 #include "nvs.h"
+#include <esp_task_wdt.h>
 
 #define CAN_RX_PIN 44
 #define CAN_TX_PIN 43
@@ -27,6 +28,9 @@ int major, minor;
 
 static uint8_t buffer[8] = {0};
 static uint8_t bufferIndex = 0;
+
+unsigned long lastReceivedTimestampCAN = 0;
+const unsigned long timeoutIntervalCAN = 30000; // 30 sekund v milisekundách
 
 HardwareSerial RS422(2);
 enum MessageIDToRecieve
@@ -425,7 +429,6 @@ void handleCANMessage(int id, twai_message_t message)
     sendCANMessage(SEDN_COMMAND_RESPOND_ID, createMessage_COMMAND_RESPOND_FIRMWARE_VERSION(), 8);
     break;
   default:
-    Serial.println("Neznama zprava");
     break;
   }
 }
@@ -434,6 +437,8 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
+  esp_task_wdt_init(30, false); // Inicializace watchdogu s timeoutem 30 sekund
+  esp_task_wdt_add(NULL);       // Přidání defaultního tasku
   Serial.print("READY-Lisening");
   Wire.begin(SDA_PIN, SCL_PIN);
 
@@ -497,9 +502,23 @@ void recieveMessage(void)
   while (twai_receive(&message, timeout_ticks) == ESP_OK)
   {
     // printReceivedMessage(message);
+    lastReceivedTimestampCAN = millis();
     handleCANMessage(message.identifier, message);
+    esp_task_wdt_reset(); // Resetování watchdogu
   }
   twai_clear_receive_queue();
+}
+
+void canMessageTimeoutCheck(void)
+{
+  if (millis() - lastReceivedTimestampCAN >= timeoutIntervalCAN)
+  {
+    digitalWrite(PLASMA_START, LOW);
+    digitalWrite(MARKING, LOW);
+    digitalWrite(PIERCING, LOW);
+    digitalWrite(CORNER_CURRENT, LOW);
+    digitalWrite(PLASMA_REMOTE_POWER, LOW);
+  }
 }
 
 void loop()
@@ -507,4 +526,6 @@ void loop()
   recieveMessage();
   sendMessageSerialRX();
   recieveMessage();
+  canMessageTimeoutCheck();
+  esp_task_wdt_reset(); // Resetování watchdogu
 }
